@@ -1,0 +1,4 @@
+__pycache__
+unsloth_compiled_cache/
+unsloth_training_checkpoints/
+model_temp/

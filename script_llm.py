@@ -34,6 +34,15 @@ def run_training_pipeline_real(dataset_name, task, seed_run):
         seed=seed_run,
         num_train_epochs=5
     )
+    
+    # delete model_temp and free trash
+    import shutil
+    model_temp_path = TOOLKIT_PATH + "/model_temp"
+    if os.path.exists(model_temp_path):
+        shutil.rmtree(model_temp_path)
+        print(f"Deleted {model_temp_path}")
+    
+    clear_memory()
 
     return results
 
@@ -47,15 +56,15 @@ def main():
     parser.add_argument('--seed_run', type=int, help='Seed run number')
     args = parser.parse_args()
 
-    path_results = f"fine_tuning_results/results_llm_{dataset_name}_{task}_{seed_run}.json"
-
     setup_gpu_environment()
     clear_memory()
 
     dataset_name = args.dataset_name
     task = args.task
     seed_run = args.seed_run
-
+    
+    path_results = f"fine_tuning_results/results_llm_{dataset_name}_{task}_{seed_run}.json"
+    
     if os.path.exists(path_results):
         print(
             f"Results for {dataset_name} {task} seed {seed_run} already exist. Skipping.")
