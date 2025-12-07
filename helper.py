@@ -13,6 +13,18 @@ considered_aspects_tasks = {
 stop_paraphrase = rf"[SSEP]\n"
 stop_tuple = rf"]\n"
 
+TOOLKIT_PATH = '/home/hellwig/absa-toolkit'
+
+
+def phrases_with_signs(valid_phrases):
+    valid_phrases_with_signs = []
+    for p in valid_phrases:
+        if "'" in p:
+            valid_phrases_with_signs.append(rf'"' + p + rf'"')
+            pass
+        valid_phrases_with_signs.append(rf"'" + p + rf"'")
+        
+    return valid_phrases_with_signs
 
 def parse_label_string(label_string, task):
     label_string = label_string.strip()
@@ -45,14 +57,16 @@ def parse_label_string(label_string, task):
 
         if task == "tasd":
             if array_based:
-                pattern = r"\['(.+?)', '(.+?)', '(.+?)'\]"
+                # Allow both single and double quotes for first element
+                pattern = r"\[['\"](.+?)['\"], '(.+?)', '(.+?)'\]"
             else:
-                pattern = r"\('(.+?)', '(.+?)', '(.+?)'\)"
+                pattern = r"\(['\"](.+?)['\"], '(.+?)', '(.+?)'\)"
         elif task == "asqp":
             if array_based:
-                pattern = r"\['(.+?)', '(.+?)', '(.+?)', '(.+?)'\]"
+                # Allow both single and double quotes for first and fourth element
+                pattern = r"\[['\"](.+?)['\"], '(.+?)', '(.+?)', ['\"](.+?)['\"]\]"
             else:
-                pattern = r"\('(.+?)', '(.+?)', '(.+?)', '(.+?)'\)"
+                pattern = r"\(['\"](.+?)['\"], '(.+?)', '(.+?)', ['\"](.+?)['\"]\)"
         matches = re.match(pattern, t)
         if matches:
             tuples_list.append(matches.groups())
@@ -61,8 +75,7 @@ def parse_label_string(label_string, task):
 
     return tuples_list
 
-
-def get_dataset(dataset_name, split, task, base_path="data"):
+def get_dataset(dataset_name, split, task, base_path=TOOLKIT_PATH + "/data"):
     dataset_path = os.path.join(
         base_path, "datasets", task, dataset_name, f"{split}.txt")
     with open(dataset_path, "r") as f:
@@ -70,8 +83,11 @@ def get_dataset(dataset_name, split, task, base_path="data"):
     dataset = []
     for line in lines:
         text, label = line.strip().split("####")
-        # text = text.replace("  (", " (").replace(" )", ")").replace("  $", " $").replace(" /", "/").replace(" +", "+")
         label = parse_label_string(label, task)
+        # strip all strings within label tuples
+        if task == "tasd" and "rest" in dataset_name:
+            text = text.replace(" '", "'").replace(" )", ")").replace(" (", "(").replace(" /", "/").replace(" .", ".").replace(" ,", ",").replace(' "', '"').replace(" +", "+").replace(" $", "$")
+        label = [tuple(s.strip() for s in tup) for tup in label]
         dataset.append({
             "text": text,
             "label": label
@@ -81,7 +97,7 @@ def get_dataset(dataset_name, split, task, base_path="data"):
 
 def get_fs_examples(dataset_name, task, n_shot):
     fs_examples_path = os.path.join(
-        "data", "fs_examples", task, dataset_name, f"fs_{n_shot}", "examples.txt")
+        TOOLKIT_PATH, "data", "fs_examples", task, dataset_name, f"fs_{n_shot}", "examples.txt")
     with open(fs_examples_path, "r") as f:
         lines = f.readlines()
     fs_examples = []
@@ -135,7 +151,7 @@ def get_fs_examples_new_with_seed(dataset_name, task, n_shot, seed, use_dev=Fals
     return fs_examples
 
 
-def get_unique_aspect_categories(dataset_name, task, base_path="data"):
+def get_unique_aspect_categories(dataset_name, task, base_path=TOOLKIT_PATH + "/data"):
     train = get_dataset(dataset_name, "train", task, base_path=base_path)
     test = get_dataset(dataset_name, "test", task, base_path=base_path)
     dev = get_dataset(dataset_name, "dev", task, base_path=base_path)
@@ -595,15 +611,13 @@ def get_regex_pattern_tuple(unique_aspect_categories, polarities, considered_asp
     tuple_pattern_parts = []
     for aspect in considered_aspects:
         if aspect == "aspect term":
-            tuple_pattern_parts += [
-                rf"'(NULL|({'|'.join(escape_except_space(p) for p in valid_phrases)}))'"]
+            tuple_pattern_parts += [rf"('NULL'|{'|'.join(escape_except_space(rf""+p) for p in phrases_with_signs(valid_phrases))})"]
         elif aspect == "aspect category":
             tuple_pattern_parts += [rf"'({category_pattern})'"]
         elif aspect == "sentiment polarity":
             tuple_pattern_parts += [rf"'({polarity_pattern})'"]
         elif aspect == "opinion term":
-            tuple_pattern_parts += [
-                rf"'({'|'.join(escape_except_space(p) for p in valid_phrases)})'"]
+            tuple_pattern_parts += [rf"({'|'.join(escape_except_space(rf""+p) for p in phrases_with_signs(valid_phrases))})"]
 
     tuple_pattern_str = rf"\(" + rf", ".join(tuple_pattern_parts) + rf"\)"
     tuple_pattern_str = rf"\[{tuple_pattern_str}(, {tuple_pattern_str})*\]\n"
@@ -702,13 +716,13 @@ def get_token_confidences(output):
     return confidences
 
 
-def find_valid_phrases_list(text: str, max_tokens_in_phrase: int | None = None) -> list[str]:
+def find_valid_phrases_list(text: str, max_chars_in_phrase: int | None = None) -> list[str]:
     """
     Extract all valid phrases from a given text based on punctuation and formatting rules.
 
     Args:
         text (str): The input text.
-        max_tokens_in_phrase (int, optional): Maximum number of tokens allowed per phrase. 
+        max_chars_in_phrase (int, optional): Maximum number of characters allowed per phrase. 
                                               If None, no limit is applied.
     Returns:
         list[str]: List of cleaned, unique phrases.
@@ -721,11 +735,20 @@ def find_valid_phrases_list(text: str, max_tokens_in_phrase: int | None = None) 
 
     # Define patterns for splits (merged for clarity)
     split_patterns = [
-        r'(?<=\w)(?=[,\.!?;:\-\(\)])',  # before punctuation
+        r'(?<=\w)(?=[,!?;:\(\)])',      # before punctuation (without hyphen and period)
+        r'(?<=[,!?;:\(\)])(?=\w)',      # after punctuation (without period)
+        r'(?<=\))(?=\.)',               # between ) and .
+        r'(?<=\))(?=\,)',               # between ) and ,
         r'\s+',                          # spaces
-        r'[\$"\'“”\/…]',                 # before/after special chars
+        r'[\$"\'""\/…]',                 # before/after special chars
         r'(?<=[a-z])(?=[A-Z])',          # camel-case boundary
         r'[^\x00-\x7F]',                 # non-ASCII chars
+        r'(?<=\w)(?=-)',                 # before hyphen
+        r'(?<=-)(?=\w)',                 # after hyphen
+        r'(?<=\w)(?=\*)',                # before asterisk
+        r'(?<=\*)',                      # after asterisk
+        r'(?<=\w)(?=\.)',                # before period
+        r'(?<=\.)(?=\w)',                # after period
     ]
 
     # Collect split indices
@@ -735,9 +758,9 @@ def find_valid_phrases_list(text: str, max_tokens_in_phrase: int | None = None) 
 
     split_positions = sorted(split_positions)
 
-    # Set token limit
-    if max_tokens_in_phrase is None:
-        max_tokens_in_phrase = len(text.split())
+    # Set character limit
+    if max_chars_in_phrase is None:
+        max_chars_in_phrase = len(text)
 
     # Generate phrases
     for i, start in enumerate(split_positions):
@@ -745,15 +768,18 @@ def find_valid_phrases_list(text: str, max_tokens_in_phrase: int | None = None) 
             phrase = text[start:end].strip()
             if not phrase:
                 continue
-            if len(phrase.split()) <= max_tokens_in_phrase:
+            if len(phrase) <= max_chars_in_phrase:
                 phrases.append(phrase)
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_phrases = []
+    for phrase in phrases:
+        if phrase not in seen:
+            seen.add(phrase)
+            unique_phrases.append(phrase)
 
-    # Escape quotes and remove duplicates
-    clean_phrases = list(
-        {p.replace("'", r"\'").replace('"', r'\"') for p in phrases})
-
-    return clean_phrases
-
+    return unique_phrases
 
 def setup_gpu_environment():
     """Configure GPU environment for optimal performance."""
@@ -791,6 +817,11 @@ def convert_to_list_of_probs_for_each_token(logprob_dict):
                 logprob_obj.logprob) if logprob_obj.logprob != -np.inf else 0.0
             probs.append(prob)
         token_probs.append(probs)
+    
+    # remove valus lower than 0.001
+    # round values above
+    token_probs = [[round(p, 3) for p in probs if p >= 0.001] for probs in token_probs]
+    
     return token_probs
 
 
