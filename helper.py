@@ -23,8 +23,9 @@ def phrases_with_signs(valid_phrases):
             valid_phrases_with_signs.append(rf'"' + p + rf'"')
             pass
         valid_phrases_with_signs.append(rf"'" + p + rf"'")
-        
+
     return valid_phrases_with_signs
+
 
 def parse_label_string(label_string, task):
     label_string = label_string.strip()
@@ -75,6 +76,7 @@ def parse_label_string(label_string, task):
 
     return tuples_list
 
+
 def get_dataset(dataset_name, split, task, base_path=TOOLKIT_PATH + "/data"):
     dataset_path = os.path.join(
         base_path, "datasets", task, dataset_name, f"{split}.txt")
@@ -86,7 +88,8 @@ def get_dataset(dataset_name, split, task, base_path=TOOLKIT_PATH + "/data"):
         label = parse_label_string(label, task)
         # strip all strings within label tuples
         if task == "tasd" and "rest" in dataset_name:
-            text = text.replace(" '", "'").replace(" )", ")").replace(" (", "(").replace(" /", "/").replace(" .", ".").replace(" ,", ",").replace(' "', '"').replace(" +", "+").replace(" $", "$")
+            text = text.replace(" '", "'").replace(" )", ")").replace(" (", "(").replace(
+                " /", "/").replace(" .", ".").replace(" ,", ",").replace(' "', '"').replace(" +", "+").replace(" $", "$")
         label = [tuple(s.strip() for s in tup) for tup in label]
         dataset.append({
             "text": text,
@@ -117,14 +120,12 @@ def get_fs_examples_new_with_seed(dataset_name, task, n_shot, seed, use_dev=Fals
     fs_examples_path_dev = f"/home/hellwig/absa-toolkit/data/datasets/{task}/{dataset_name}/dev.txt"
 
     lines_train = []
-    if not use_dev:
-        with open(fs_examples_path_train, "r") as f:
-            lines_train = f.readlines()
+    with open(fs_examples_path_train, "r") as f:
+        lines_train = f.readlines()
 
-        random.seed(seed)
-        random.shuffle(lines_train)
+    random.seed(seed)
+    random.shuffle(lines_train)
 
-    
     lines_dev = []
     if use_dev:
         with open(fs_examples_path_dev, "r") as f:
@@ -136,10 +137,9 @@ def get_fs_examples_new_with_seed(dataset_name, task, n_shot, seed, use_dev=Fals
     lines = lines_train + lines_dev
 
     fs_examples = []
-    
-    if len(lines) >= n_shot:
-        lines = lines[:n_shot]
-    
+
+    lines = lines[:n_shot]
+
     for line in lines:
         text, label = line.strip().split("####")
         # text = text.replace("  (", " (").replace(" )", ")").replace("  $", " $").replace(" /", "/").replace(" +", "+")
@@ -611,13 +611,15 @@ def get_regex_pattern_tuple(unique_aspect_categories, polarities, considered_asp
     tuple_pattern_parts = []
     for aspect in considered_aspects:
         if aspect == "aspect term":
-            tuple_pattern_parts += [rf"('NULL'|{'|'.join(escape_except_space(rf""+p) for p in phrases_with_signs(valid_phrases))})"]
+            tuple_pattern_parts += [rf"('NULL'|{'|'.join(escape_except_space(rf""+p)
+                                                         for p in phrases_with_signs(valid_phrases))})"]
         elif aspect == "aspect category":
             tuple_pattern_parts += [rf"'({category_pattern})'"]
         elif aspect == "sentiment polarity":
             tuple_pattern_parts += [rf"'({polarity_pattern})'"]
         elif aspect == "opinion term":
-            tuple_pattern_parts += [rf"({'|'.join(escape_except_space(rf""+p) for p in phrases_with_signs(valid_phrases))})"]
+            tuple_pattern_parts += [rf"({'|'.join(escape_except_space(rf""+p)
+                                                  for p in phrases_with_signs(valid_phrases))})"]
 
     tuple_pattern_str = rf"\(" + rf", ".join(tuple_pattern_parts) + rf"\)"
     tuple_pattern_str = rf"\[{tuple_pattern_str}(, {tuple_pattern_str})*\]\n"
@@ -735,7 +737,8 @@ def find_valid_phrases_list(text: str, max_chars_in_phrase: int | None = None) -
 
     # Define patterns for splits (merged for clarity)
     split_patterns = [
-        r'(?<=\w)(?=[,!?;:\(\)])',      # before punctuation (without hyphen and period)
+        # before punctuation (without hyphen and period)
+        r'(?<=\w)(?=[,!?;:\(\)])',
         r'(?<=[,!?;:\(\)])(?=\w)',      # after punctuation (without period)
         r'(?<=\))(?=\.)',               # between ) and .
         r'(?<=\))(?=\,)',               # between ) and ,
@@ -770,7 +773,7 @@ def find_valid_phrases_list(text: str, max_chars_in_phrase: int | None = None) -
                 continue
             if len(phrase) <= max_chars_in_phrase:
                 phrases.append(phrase)
-    
+
     # Remove duplicates while preserving order
     seen = set()
     unique_phrases = []
@@ -780,6 +783,7 @@ def find_valid_phrases_list(text: str, max_chars_in_phrase: int | None = None) -
             unique_phrases.append(phrase)
 
     return unique_phrases
+
 
 def setup_gpu_environment():
     """Configure GPU environment for optimal performance."""
@@ -817,11 +821,12 @@ def convert_to_list_of_probs_for_each_token(logprob_dict):
                 logprob_obj.logprob) if logprob_obj.logprob != -np.inf else 0.0
             probs.append(prob)
         token_probs.append(probs)
-    
+
     # remove valus lower than 0.001
     # round values above
-    token_probs = [[round(p, 3) for p in probs if p >= 0.001] for probs in token_probs]
-    
+    token_probs = [[round(p, 3) for p in probs if p >= 0.001]
+                   for probs in token_probs]
+
     return token_probs
 
 
