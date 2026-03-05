@@ -344,7 +344,7 @@ def get_prompt_elsevier(dataset_name, task, label_gen, examples=[], unique_aspec
     return prompt
 
 
-def get_prompt(dataset_name, task, text_pred, examples=[], unique_aspect_categories=None, considered_aspects=None, polarities=["positive", "negative", "neutral"], approach="tuple"):
+def get_prompt(dataset_name, task, text_pred, examples=[], unique_aspect_categories=None, considered_aspects=None, polarities=["positive", "negative", "neutral"], approach="tuple", allow_empty=False):
     if considered_aspects is None and task == "tasd":
         considered_aspects = considered_aspects_tasks["tasd"]
     elif considered_aspects is None and task == "asqp":
@@ -381,7 +381,10 @@ def get_prompt(dataset_name, task, text_pred, examples=[], unique_aspect_categor
         if "opinion term" == considered_aspect:
             prompt += f"- The 'opinion term' is the exact word or phrase in the text that refers to the sentiment or attitude expressed by a user towards a particular aspect or feature of a product or service, the aspect term might be '{implicit_aspect}' for implicit opinion.\n"
 
-    prompt += f"\nRecognize all sentiment elements with their corresponding {', '.join(considered_aspects)} in the following text with the format of {output_format_definition}\n\n"
+    prompt += f"\nRecognize all sentiment elements with their corresponding {', '.join(considered_aspects)} in the following text with the format of {output_format_definition}\n"
+    if allow_empty:
+        prompt += "If no aspects or sentiments are present in the text, return an empty list: [].\n"
+    prompt += "\n"
 
     # Add few shot examples
     for example in examples:
@@ -602,7 +605,7 @@ def escape_except_space(text):
     return re.sub(r'([.^$*+?{}\[\]\\|()])', r'\\\1', text)
 
 
-def get_regex_pattern_tuple(unique_aspect_categories, polarities, considered_aspects, valid_phrases):
+def get_regex_pattern_tuple(unique_aspect_categories, polarities, considered_aspects, valid_phrases, allow_empty=False):
     # Tuple Patternteile
     category_pattern = "|".join(cat for cat in unique_aspect_categories)
     polarity_pattern = "|".join(polarities)
@@ -622,7 +625,11 @@ def get_regex_pattern_tuple(unique_aspect_categories, polarities, considered_asp
                                                   for p in phrases_with_signs(valid_phrases))})"]
 
     tuple_pattern_str = rf"\(" + rf", ".join(tuple_pattern_parts) + rf"\)"
-    tuple_pattern_str = rf"\[{tuple_pattern_str}(, {tuple_pattern_str})*\]\n"
+    
+    if allow_empty:
+        tuple_pattern_str = rf"\[({tuple_pattern_str}(, {tuple_pattern_str})*)?\]\n"
+    else:
+        tuple_pattern_str = rf"\[{tuple_pattern_str}(, {tuple_pattern_str})*\]\n"
 
     return tuple_pattern_str
 
