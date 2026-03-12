@@ -563,8 +563,25 @@ def train_and_evaluate(
     # Stop GPU monitoring for evaluation and get results
     avg_gpu_power_eval_W, total_time_eval = gpu_monitor_eval.stop()
 
-    results.update(scores)
-    results['total_time_eval'] = total_time_eval
-    results['avg_gpu_power_eval_W'] = avg_gpu_power_eval_W
+    # ensure the order of the sentiment elements within the tuple is correct (at, ac, sp, ot)
+    if task == "asqp":
+        all_labels_corrected = [[(t[1], t[0], opinion2word[t[2]] if t[2] in opinion2word else t[2], t[3]) for t in label] for label in scores["all_labels"]]
+        all_preds_corrected  = [[(t[1], t[0], opinion2word[t[2]] if t[2] in opinion2word else t[2], t[3]) for t in pred] for pred in scores["all_preds"]]
+    elif task == "tasd":
+        all_labels_corrected = [[(t[1], t[0], t[2]) for t in label] for label in scores["all_labels"]]
+        all_preds_corrected  = [[(t[1], t[0], t[2]) for t in pred] for pred in scores["all_preds"]]
+    else:
+        all_labels_corrected = scores["all_labels"]
+        all_preds_corrected = scores["all_preds"]
+
+    results.update({
+        "precision": scores["precision"],
+        "recall": scores["recall"],
+        "f1": scores["f1"],
+        "all_labels": all_labels_corrected,
+        "all_preds": all_preds_corrected,
+        'total_time_eval': total_time_eval,
+        'avg_gpu_power_eval_W': avg_gpu_power_eval_W
+    })
     
     return results
