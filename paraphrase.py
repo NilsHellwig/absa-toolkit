@@ -105,7 +105,11 @@ def get_para_tasd_targets(sents, labels):
             if is_german:
                 man_ot = sentword2opinion_german[sp]
             else:
-                man_ot = sentword2opinion[sp]
+                try:
+                   man_ot = sentword2opinion[sp]
+                except:
+                    man_ot = sp
+                    
 
             if at == 'NULL':
                 if is_german:
@@ -137,7 +141,10 @@ def get_para_asqp_targets(sents, labels):
             if is_german:
                 man_ot = sentword2opinion_german[sp]
             else:
-                man_ot = sentword2opinion[sp]
+                try:
+                    man_ot = sentword2opinion[sp]
+                except:
+                    man_ot = sp
 
             if at == 'NULL':  # for implicit aspect term
                 if is_german:
