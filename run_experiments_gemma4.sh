@@ -1,8 +1,8 @@
 #!/bin/bash
 
-DATASET_NAMES=("rest16")
-TASKS=("asqp")
-N_SEEDS_RUNS=1
+DATASET_NAMES=("rest16" "rest15" "flightabsa" "coursera" "hotels")
+TASKS=("asqp" "tasd")
+N_SEEDS_RUNS=5
 
 # Ensure output directory exists
 mkdir -p fine_tuning_results_gemma_4
@@ -10,6 +10,12 @@ mkdir -p fine_tuning_results_gemma_4
 for seed_run in $(seq 0 $((N_SEEDS_RUNS - 1))); do
     for dataset_name in "${DATASET_NAMES[@]}"; do
         for task in "${TASKS[@]}"; do
+            RESULT_FILE="fine_tuning_results_gemma_4/results_llm_${dataset_name}_${task}_${seed_run}.json"
+            if [ -f "$RESULT_FILE" ]; then
+                echo "Skipping $dataset_name $task Seed: $seed_run, result already exists: $RESULT_FILE"
+                continue
+            fi
+
             echo "Running experiment: $dataset_name $task Seed: $seed_run"
             
             # Step 1: Train (using vllm_unsloth env)
@@ -31,11 +37,11 @@ for seed_run in $(seq 0 $((N_SEEDS_RUNS - 1))); do
             sleep 5
 
             # Step 2: Test (using vllm env)
-            # echo "Starting Evaluation..."
-            # ~/miniconda3/envs/vllm/bin/python test_gemma4.py \
-            #     --dataset_name "$dataset_name" \
-            #     --task "$task" \
-            #     --seed_run "$seed_run"
+            echo "Starting Evaluation..."
+            ~/miniconda3/envs/vllm/bin/python test_gemma4.py \
+                --dataset_name "$dataset_name" \
+                --task "$task" \
+                --seed_run "$seed_run"
             
             # Cleanup model_temp after each run to save space and ensure fresh start
             # if [ -d "model_temp" ]; then

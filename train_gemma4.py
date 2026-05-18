@@ -75,8 +75,7 @@ def main():
 
     tokenizer = get_chat_template(
         tokenizer,
-        # oder "gemma-4-thinking" (für größere Modelle empfohlen)
-        chat_template="gemma-4-thinking",
+        chat_template="gemma-4",
     )
 
     def formatting_prompts_func(examples):
@@ -155,40 +154,6 @@ def main():
     tokenizer.save_pretrained("model_temp")
 
     print("Model saved to model_temp")
-    
-    # # --- PROBE-PREDICTION START ---
-    # print("\n--- Testing Model Prediction ---")
-    # FastModel.for_inference(model) # Aktiviert 2x schnellere Inferenz
-
-    # # Nimm ein Beispiel aus deinen Daten oder einen Test-Satz
-    # test_text = "The atmosphere was great, but the pizza was cold."
-    
-    # # Baue den Prompt exakt so wie im Training
-    # prompt = get_prompt(
-    #     dataset_name=args.dataset_name,
-    #     task=args.task,
-    #     text_pred=test_text,
-    #     examples=[],
-    #     unique_aspect_categories=unique_aspect_categories_train
-    # )
-    
-    # inputs = tokenizer.apply_chat_template(
-    #     [{"role": "user", "content": prompt}],
-    #     tokenize=True,
-    #     add_generation_prompt=True, # WICHTIG: Fügt den Header für die Antwort an
-    #     return_tensors="pt",
-    # ).to("cuda")
-
-    # outputs = model.generate(
-    #     input_ids=inputs,
-    #     max_new_tokens=128,
-    #     use_cache=True,
-    #     temperature=0.0, # Niedrig für stabilere Ergebnisse
-    # )
-    
-    # prediction = tokenizer.batch_decode(outputs)
-    # print("Predicted Output:\n", prediction[0])
-    # # --- PROBE-PREDICTION ENDE ---
 
 
 if __name__ == "__main__":

@@ -33,7 +33,6 @@ def main():
     test_data_raw = get_dataset(args.dataset_name, "test", args.task, TOOLKIT_PATH+"/data")
     
     gpu_monitor_eval = GPUMonitor()
-    gpu_monitor_eval.start()
 
     llm = LLM(
         model=model_name_or_path,
@@ -58,18 +57,22 @@ def main():
             examples=[],
             unique_aspect_categories=unique_aspect_categories
         )
-        # Manuelle Formatierung exakt wie im Training (train_gemma4.py)
-        # Beachtung der fehlenden Pipe in <|turn> falls das beabsichtigt war
-        formatted_prompt = f"<|turn>user\n{prompt}<|turn>model\n"
-        conversations.append(formatted_prompt)
+        # Use message format for llm.chat
+        messages = [
+            {"role": "user", "content": prompt},
+        ]
+        conversations.append(messages)
+        
+    gpu_monitor_eval.start()
 
-    # vLLM prompt formatting for Gemma 4
-    # Wir nutzen llm.generate statt llm.chat, da wir den Prompt bereits fertig formatiert haben
-    outputs = llm.generate(
-        prompts=conversations,
+    # Use llm.chat for better handling of ChatML-like templates
+    outputs = llm.chat(
+        messages=conversations,
         sampling_params=sampling_params,
         lora_request=LoRARequest("adapter", 1, lora_path)
     )
+    
+    avg_gpu_power_eval_W, total_time_eval = gpu_monitor_eval.stop()
 
     all_preds = []
     for idx, output in enumerate(outputs):
@@ -85,7 +88,6 @@ def main():
             print(f"Error parsing output {idx}: {e}")
             all_preds.append([])
 
-    avg_gpu_power_eval_W, total_time_eval = gpu_monitor_eval.stop()
 
     all_gold = [[list(tupl) for tupl in example["label"]] for example in test_data_raw]
 
