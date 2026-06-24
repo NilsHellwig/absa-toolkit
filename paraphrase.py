@@ -482,6 +482,7 @@ def train_and_evaluate(
     task="tasd",
     model_name_or_path="t5-base",
     num_train_epochs=20,
+    num_train_steps=None,
     train_batch_size=16,
     test_batch_size=16,
     max_seq_length=128,
@@ -525,10 +526,13 @@ def train_and_evaluate(
                       lr=learning_rate,
                       eps=adam_epsilon)
 
-    t_total = (len(train_loader.dataset) //
-               (train_batch_size * max(1, n_gpu))
-               ) // gradient_accumulation_steps \
-        * float(num_train_epochs)
+    if num_train_steps is not None:
+        t_total = float(num_train_steps)
+    else:
+        t_total = (len(train_loader.dataset) //
+                   (train_batch_size * max(1, n_gpu))
+                   ) // gradient_accumulation_steps \
+            * float(num_train_epochs)
 
     scheduler = get_linear_schedule_with_warmup(
         optimizer,
@@ -540,11 +544,63 @@ def train_and_evaluate(
     gpu_monitor_train = GPUMonitor()
     gpu_monitor_train.start()
     
-    for epoch in range(int(num_train_epochs)):
-        train_loss = train_model(
-            model, train_loader, optimizer, scheduler, device)
-        print(
-            f"Epoch {epoch+1}/{num_train_epochs}, Training Loss: {train_loss:.4f}")
+    current_step = 0
+    model.train()
+    
+    if num_train_steps is not None:
+        # Step-based training
+        pbar = tqdm(total=num_train_steps, desc="Training Steps")
+        while current_step < num_train_steps:
+            for batch in train_loader:
+                if current_step >= num_train_steps:
+                    break
+                
+                optimizer.zero_grad()
+                lm_labels = batch["target_ids"].to(device)
+                lm_labels[lm_labels[:, :] == model.tokenizer.pad_token_id] = -100
+
+                outputs = model(
+                    input_ids=batch["source_ids"].to(device),
+                    attention_mask=batch["source_mask"].to(device),
+                    labels=lm_labels,
+                    decoder_attention_mask=batch['target_mask'].to(device)
+                )
+
+                loss = outputs.loss
+                loss.backward()
+                optimizer.step()
+                scheduler.step()
+                
+                current_step += 1
+                pbar.update(1)
+                pbar.set_postfix({'loss': f"{loss.item():.4f}"})
+        pbar.close()
+    else:
+        # Epoch-based training
+        for epoch in range(int(num_train_epochs)):
+            total_loss = 0.0
+            for batch in tqdm(train_loader, desc=f"Training Epoch {epoch+1}"):
+                optimizer.zero_grad()
+                lm_labels = batch["target_ids"].to(device)
+                lm_labels[lm_labels[:, :] == model.tokenizer.pad_token_id] = -100
+
+                outputs = model(
+                    input_ids=batch["source_ids"].to(device),
+                    attention_mask=batch["source_mask"].to(device),
+                    labels=lm_labels,
+                    decoder_attention_mask=batch['target_mask'].to(device)
+                )
+
+                loss = outputs.loss
+                loss.backward()
+                optimizer.step()
+                scheduler.step()
+                
+                total_loss += loss.item()
+                current_step += 1
+
+            avg_loss = total_loss / len(train_loader)
+            print(f"Epoch {epoch+1}/{num_train_epochs}, Training Loss: {avg_loss:.4f}")
 
     # Stop GPU monitoring for training and get results
     avg_gpu_power_train_W, total_time_train = gpu_monitor_train.stop()
